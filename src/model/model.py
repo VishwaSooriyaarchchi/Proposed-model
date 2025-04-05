@@ -55,6 +55,7 @@ class TargetNet(nn.Module):
         x = x.reshape(len(x), -1)
         # print(f"Flattened ResNet output shape: {x.shape}")
         x = torch.cat((x,x2), dim = 1)
+        x = self.dropout(self.relu(x))
         # print(f"Concatenated output shape: {x.shape}")
         x = self.linear(x)
         # print(x.shape,'here ', x)

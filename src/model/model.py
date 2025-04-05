@@ -30,6 +30,11 @@ class TargetNet(nn.Module):
         # self.linear = nn.Linear(int(num_channels[-1] * out_length), 1)
         self.linear = nn.Linear(4312, 1)
 
+        #changes for the fused gate parts
+        self.inception_proj = nn.Linear(3800, 512)
+        self.feature_dim = 512  # Replace F with the correct dimension of each branch's flattened output.
+        self.fusion_gate = FusionGate(self.feature_dim)
+
     def _make_layer(self, cfg, out_channels, num_blocks, dropout_rate, stem=False):
         layers = []
         for b in range(num_blocks):
@@ -43,6 +48,8 @@ class TargetNet(nn.Module):
 
     def forward(self, x):
         x2 = self.inception(x)
+        # Project the Inception output to the common dimension (512)
+        x2 = self.inception_proj(x2)
 
         x = self.stem(x)
         # print(x.shape)
@@ -54,7 +61,11 @@ class TargetNet(nn.Module):
         print(f"Inception output shape: {x2.shape}")
         x = x.reshape(len(x), -1)
         print(f"Flattened ResNet output shape: {x.shape}")
-        x = torch.cat((x,x2), dim = 1)
+        # x = torch.cat((x,x2), dim = 1)
+
+        # Use the FusionGate to combine features:
+        x = self.fusion_gate(x, x2)
+
         x = self.dropout(self.relu(x))
         # print(f"Concatenated output shape: {x.shape}")
         x = self.linear(x)
@@ -208,3 +219,15 @@ class ResNet_Block(nn.Module):
 
         return out
 
+#learnable fusion gated layer
+class FusionGate(nn.Module):
+    def __init__(self, feature_dim):
+        super(FusionGate, self).__init__()
+        self.linear = nn.Linear(feature_dim * 2, feature_dim)
+        self.sigmoid = nn.Sigmoid()
+    
+    def forward(self, feat_resnet, feat_inception):
+        combined = torch.cat([feat_resnet, feat_inception], dim=1)
+        gate = self.sigmoid(self.linear(combined))
+        fused_features = gate * feat_resnet + (1 - gate) * feat_inception
+        return fused_features

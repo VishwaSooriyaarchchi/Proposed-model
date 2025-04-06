@@ -7,6 +7,7 @@ from collections import OrderedDict
 
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
 
 from src.utils import Print
 
@@ -189,8 +190,13 @@ def get_optim_scheduler(cfg, params):
 
 def get_loss(outputs, labels):
     """ get (binary) cross entropy loss """
-    loss = -torch.mean(labels * F.logsigmoid(outputs) + (1 - labels) * F.logsigmoid(-outputs))
+    # loss = -torch.mean(labels * F.logsigmoid(outputs) + (1 - labels) * F.logsigmoid(-outputs))
 
+    # return loss
+    # Ensure the pos_weight tensor is on the same device as the outputs
+    pos_weight = torch.tensor([0.5]).to(outputs.device)  # Adjust the weight as needed
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    loss = criterion(outputs, labels)
     return loss
 
 
